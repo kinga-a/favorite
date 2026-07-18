@@ -364,26 +364,39 @@ export function AppLayout() {
     setSelectedLinks(new Set());
   }, []);
 
+  // 生成唯一 ID
+  const generateId = useCallback(() => {
+    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+  }, []);
+
   const handleSaveLink = useCallback((link: LinkItem) => {
     if (editingLink) {
       const updated = links.map(l => l.id === link.id ? link : l);
       setLinksAndSync(updated, categories);
     } else {
-      setLinksAndSync([...links, link], categories);
+      // 新建链接时确保有唯一 ID
+      const newLink = {
+        ...link,
+        id: link.id || generateId(),
+        createdAt: link.createdAt || Date.now(),
+      };
+      setLinksAndSync([...links, newLink], categories);
     }
     setIsModalOpen(false);
     setEditingLink(undefined);
     setPrefillLink(undefined);
-  }, [editingLink, links, categories, setLinksAndSync]);
+  }, [editingLink, links, categories, setLinksAndSync, generateId]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, link: LinkItem) => {
+    if (isBatchEditMode || !authToken) return;
     e.preventDefault();
+    e.stopPropagation();
     setContextMenu({
       isOpen: true,
       position: { x: e.clientX, y: e.clientY },
       link,
     });
-  }, []);
+  }, [isBatchEditMode, authToken]);
 
   const handleBatchDelete = useCallback(() => {
     if (confirm(`确定删除选中的 ${selectedLinks.size} 个链接吗？`)) {
@@ -668,7 +681,7 @@ export function AppLayout() {
             }}
             onTogglePin={() => {
               const updated = links.map(l =>
-                l.id === contextMenu.link!.id ? { ...l, isPinned: !l.isPinned } : l
+                l.id === contextMenu.link!.id ? { ...l, pinned: !l.pinned } : l
               );
               setLinksAndSync(updated, categories);
               setContextMenu(prev => ({ ...prev, isOpen: false }));
@@ -691,6 +704,27 @@ export function AppLayout() {
           onClose={() => setCatAuthModalData(null)}
           onUnlock={handleCategoryUnlock}
         />
+      )}
+            {isBatchEditMode && selectedLinks.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-800/95 border-t border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center justify-between shadow-lg">
+          <span className="text-sm text-slate-600 dark:text-slate-300">
+            已选中 <span className="font-bold text-blue-600 dark:text-blue-400">{selectedLinks.size}</span> 个链接
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setSelectedLinks(new Set()); setIsBatchEditMode(false); }}
+              className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleBatchDelete}
+              className="px-4 py-2 text-sm bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+            >
+              删除选中
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
